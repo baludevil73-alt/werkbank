@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ressourcen-Werkbank kompakt</title>
+  <style>
+    :root{
+      --bg:#0b1220;--panel:#111827;--card:#1f2937;--border:#374151;
+      --text:#f9fafb;--muted:#9ca3af;--accent:#3b82f6;--green:#22c55e;
+      --orange:#f59e0b;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#0b1220;color:var(--text);font-size:14px}
+    .wrap{max-width:900px;margin:0 auto;padding:14px}
+    h1{margin:0 0 3px;font-size:24px}
+    h3{margin:0;font-size:15px}
+    .sub,.muted{color:var(--muted);font-size:12px}
+    .sub{margin-bottom:12px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .full{grid-column:1/-1}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:11px}
+    label,.label{display:block;font-size:12px;font-weight:700;margin-bottom:4px}
+    input,select,button{font:inherit}
+    input,select{width:100%;min-height:36px;border:1px solid var(--border);border-radius:7px;background:var(--panel);color:var(--text);padding:7px 9px}
+    input:focus,select:focus,button:focus{outline:2px solid var(--accent);outline-offset:1px}
+    .resource-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+    .radios{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    .radio{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:7px;padding:7px;background:var(--panel)}
+    .radio input{width:auto;min-height:auto}
+    .toprow{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px}
+    .counter{font-size:16px;font-weight:800}
+    .bar{height:10px;background:#0b1220;border-radius:999px;overflow:hidden;margin-top:8px;border:1px solid var(--border)}
+    .fill{height:100%;width:0;background:var(--accent);transition:width .25s linear}
+    #outputFill{background:var(--orange)}
+    .status{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:3px 8px;font-size:11px;color:var(--muted)}
+    .status.running{border-color:var(--accent);color:#bfdbfe}
+    .status.done{border-color:var(--green);color:#bbf7d0}
+    .status.paused{border-color:var(--orange);color:#fde68a}
+    .actions{display:flex;flex-wrap:wrap;gap:7px}
+    button{min-height:36px;border:0;border-radius:7px;padding:7px 12px;background:var(--accent);color:white;font-weight:800;cursor:pointer}
+    button.secondary{background:var(--panel);border:1px solid var(--border)}
+    button.danger{background:#7f1d1d}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:9px}
+    .stat{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px}
+    .stat .v{font-size:14px;font-weight:800;margin-top:2px;word-break:break-word}
+    .goal{margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+    .goal.done{border-color:var(--green);background:rgba(34,197,94,.10)}
+    .msg{margin-top:8px;min-height:17px;color:var(--muted);font-size:12px}
+    .note{margin-top:7px;padding:7px 8px;background:var(--panel);border:1px solid var(--border);border-radius:7px;font-size:11px;color:var(--muted)}
+    .spacer{height:9px}
+    .formula{font-size:14px;font-weight:800;margin-top:9px}
+    @media(max-width:720px){
+      .grid{grid-template-columns:1fr}
+      .full{grid-column:auto}
+      .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:480px){
+      .wrap{padding:10px}
+      .resource-grid,.radios,.stats{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <h1>Ressourcen-Werkbank</h1>
+  <div class="sub">Kompakte Echtzeit-Verarbeitung mit Start, Pause, Startzeit und Restzeit</div>
+
+  <div class="grid">
+    <section class="card">
+      <div class="toprow">
+        <div>
+          <h3>Ressourcen</h3>
+          <div class="muted">Namen direkt bearbeitbar</div>
+        </div>
+        <span id="status" class="status">Bereit</span>
+      </div>
+
+      <div class="resource-grid">
+        <div><label for="res1">R1</label><input id="res1" value="Eisenerz"></div>
+        <div><label for="res2">R2</label><input id="res2" value="Tabakpflanze"></div>
+        <div><label for="res3">R3</label><input id="res3" value="Orangen"></div>
+        <div><label for="res4">R4</label><input id="res4" value="Efi"></div>
+      </div>
+
+      <div class="spacer"></div>
+      <label for="resource">Aktive Ressource</label>
+      <select id="resource"></select>
+    </section>
+
+    <section class="card">
+      <h3>Verarbeitung</h3>
+      <div class="spacer"></div>
+      <div class="radios">
+        <label class="radio"><input type="radio" name="ratio" value="5" checked> 5 : 1</label>
+        <label class="radio"><input type="radio" name="ratio" value="10"> 10 : 1</label>
+      </div>
+      <div class="note">Pro Minute: 5 bzw. 10 Input → 1 Output.</div>
+      <div id="formula" class="formula">0 Input → 0 mögliche Output</div>
+    </section>
+
+    <section class="card">
+      <div class="toprow">
+        <div><h3>Input</h3><div class="muted">max. 3000</div></div>
+        <div id="inputCounter" class="counter">0 / 3000</div>
+      </div>
+      <input id="inputAmount" type="number" min="0" max="3000" step="1" value="0">
+      <div class="bar"><div id="inputFill" class="fill"></div></div>
+    </section>
+
+    <section class="card">
+      <div class="toprow">
+        <div><h3>Output</h3><div class="muted">max. 300</div></div>
+        <div id="outputCounter" class="counter">0 / 300</div>
+      </div>
+      <input id="outputAmount" type="number" min="0" max="300" step="1" value="0">
+      <div class="bar"><div id="outputFill" class="fill"></div></div>
+    </section>
+
+    <section class="card full">
+      <div class="toprow">
+        <div>
+          <h3>Echtzeit</h3>
+          <div class="muted">Startet mit echter verstrichener Zeit</div>
+        </div>
+        <div class="actions">
+          <button id="startBtn">Start</button>
+          <button id="pauseBtn" class="secondary" disabled>Pause</button>
+          <button id="resetBtn" class="danger">Reset</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="muted">Startzeit</div><div id="startTime" class="v">–</div></div>
+        <div class="stat"><div class="muted">Laufzeit</div><div id="elapsed" class="v">00:00:00</div></div>
+        <div class="stat"><div class="muted">Restzeit bis 300</div><div id="remaining" class="v">–</div></div>
+        <div class="stat"><div class="muted">Fertig um</div><div id="finishTime" class="v">–</div></div>
+      </div>
+      <div id="message" class="msg"></div>
+    </section>
+
+    <section class="card full">
+      <div class="grid">
+        <div>
+          <h3>Zielmenge</h3>
+          <div class="muted">Für die visuelle Fertig-Anzeige</div>
+        </div>
+        <div>
+          <input id="targetAmount" type="number" min="1" max="300" value="300">
+        </div>
+      </div>
+      <div id="goalBox" class="goal">
+        <div class="toprow" style="margin-bottom:0">
+          <div>
+            <div id="goalTitle" style="font-size:16px;font-weight:800">Noch nicht fertig</div>
+            <div id="goalText" class="muted">Es fehlen noch 300 Stück.</div>
+          </div>
+          <div id="goalValue" class="counter">0 / 300</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+(() => {
+  const input = document.getElementById('inputAmount');
+  const output = document.getElementById('outputAmount');
+  const target = document.getElementById('targetAmount');
+  const resource = document.getElementById('resource');
+  const resourceInputs = [1,2,3,4].map(n => document.getElementById('res'+n));
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const status = document.getElementById('status');
+  const message = document.getElementById('message');
+
+  let timer=null,running=false,originalStart=null,segmentStart=null,accumulatedMs=0,processedMinutes=0;
+
+  function clamp(v,min,max){
+    v=Math.floor(Number(v));
+    if(!Number.isFinite(v)) v=min;
+    return Math.max(min,Math.min(max,v));
+  }
+
+  function ratio(){
+    return Number(document.querySelector('input[name="ratio"]:checked')?.value||5);
+  }
+
+  function formatDuration(sec){
+    sec=Math.max(0,Math.floor(sec));
+    const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+    return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':');
+  }
+
+  function formatClock(date){
+    if(!date) return '–';
+    return new Intl.DateTimeFormat('de-DE',{
+      day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'
+    }).format(date);
+  }
+
+  function rebuildResources(){
+    const previous=resource.value;
+    resource.innerHTML='';
+    resourceInputs.forEach((el,i)=>{
+      const name=el.value.trim()||`Ressource ${i+1}`;
+      const opt=document.createElement('option');
+      opt.value=name; opt.textContent=name; resource.appendChild(opt);
+    });
+    const values=[...resource.options].map(o=>o.value);
+    resource.value=values.includes(previous)?previous:values[0];
+    updateStatic();
+  }
+
+  function effectiveElapsedMs(){
+    return accumulatedMs+(running&&segmentStart?Date.now()-segmentStart:0);
+  }
+
+  function syncProcessing(){
+    if(!running) return;
+    const elapsedFullMinutes=Math.floor(effectiveElapsedMs()/60000);
+    let newMinutes=elapsedFullMinutes-processedMinutes;
+    if(newMinutes<=0) return;
+
+    let i=clamp(input.value,0,3000);
+    let o=clamp(output.value,0,300);
+    const r=ratio();
+    const canMake=Math.min(newMinutes,300-o,Math.floor(i/r));
+
+    if(canMake>0){
+      i-=canMake*r;
+      o+=canMake;
+      input.value=i;
+      output.value=o;
+      processedMinutes+=canMake;
+    }
+
+    if(canMake<newMinutes||o>=300||i<r){
+      stopRunning(false);
+      message.textContent=o>=300
+        ? 'Output 300 erreicht.'
+        : `Zu wenig Input für ${r}:1.`;
+    }
+  }
+
+  function updateStatic(){
+    const i=clamp(input.value,0,3000);
+    const o=clamp(output.value,0,300);
+    const t=clamp(target.value,1,300);
+    input.value=i; output.value=o; target.value=t;
+
+    document.getElementById('inputCounter').textContent=`${i} / 3000`;
+    document.getElementById('outputCounter').textContent=`${o} / 300`;
+    document.getElementById('inputFill').style.width=`${i/3000*100}%`;
+    document.getElementById('outputFill').style.width=`${o/300*100}%`;
+
+    const r=ratio();
+    const possible=Math.min(300-o,Math.floor(i/r));
+    document.getElementById('formula').textContent=`${i} ${resource.value||'Ressource'} → ${possible} Output möglich`;
+
+    const done=o>=t;
+    document.getElementById('goalValue').textContent=`${o} / ${t}`;
+    document.getElementById('goalTitle').textContent=done?'✓ Fertig':'Noch nicht fertig';
+    document.getElementById('goalText').textContent=done
+      ? `Zielmenge ${t} erreicht.`
+      : `Noch ${Math.max(0,t-o)} Stück.`;
+    document.getElementById('goalBox').classList.toggle('done',done);
+
+    if(!running&&!originalStart){
+      status.textContent='Bereit';
+      status.className='status';
+    }
+
+    updateTimePanel();
+  }
+
+  function updateTimePanel(){
+    const elapsedMs=effectiveElapsedMs();
+    document.getElementById('elapsed').textContent=formatDuration(elapsedMs/1000);
+    document.getElementById('startTime').textContent=originalStart?formatClock(originalStart):'–';
+
+    const i=clamp(input.value,0,3000);
+    const o=clamp(output.value,0,300);
+    const r=ratio();
+    const needed=300-o;
+    const possible=Math.floor(i/r);
+
+    if(o>=300){
+      document.getElementById('remaining').textContent='00:00:00';
+      document.getElementById('finishTime').textContent='Fertig';
+    }else if(possible<needed){
+      document.getElementById('remaining').textContent=`nicht möglich`;
+      document.getElementById('finishTime').textContent='Zu wenig Input';
+    }else{
+      const secIntoMinute=Math.floor((elapsedMs/1000)%60);
+      const remainingSeconds=needed*60-(running?secIntoMinute:0);
+      document.getElementById('remaining').textContent=formatDuration(remainingSeconds);
+      document.getElementById('finishTime').textContent=formatClock(new Date(Date.now()+remainingSeconds*1000));
+    }
+  }
+
+  function tick(){
+    syncProcessing();
+    updateStatic();
+  }
+
+  function startRunning(){
+    if(running) return;
+
+    const i=clamp(input.value,0,3000);
+    const o=clamp(output.value,0,300);
+    const r=ratio();
+
+    if(o>=300){message.textContent='Output bereits voll.';return;}
+    if(i<r){message.textContent=`Mindestens ${r} Input nötig.`;return;}
+
+    if(!originalStart){
+      originalStart=new Date();
+      accumulatedMs=0;
+      processedMinutes=0;
+    }
+
+    segmentStart=Date.now();
+    running=true;
+    status.textContent='Läuft';
+    status.className='status running';
+    startBtn.disabled=true;
+    pauseBtn.disabled=false;
+
+    [input,output,target,resource,...resourceInputs].forEach(el=>el.disabled=true);
+    document.querySelectorAll('input[name="ratio"]').forEach(el=>el.disabled=true);
+
+    message.textContent=`Gestartet: ${r}:1`;
+    timer=setInterval(tick,1000);
+    tick();
+  }
+
+  function stopRunning(paused=true){
+    if(running&&segmentStart) accumulatedMs+=Date.now()-segmentStart;
+    segmentStart=null;
+    running=false;
+    if(timer){clearInterval(timer);timer=null;}
+
+    startBtn.disabled=false;
+    pauseBtn.disabled=true;
+    [input,output,target,resource,...resourceInputs].forEach(el=>el.disabled=false);
+    document.querySelectorAll('input[name="ratio"]').forEach(el=>el.disabled=false);
+
+    if(paused){
+      status.textContent='Pause';
+      status.className='status paused';
+      message.textContent='Pausiert.';
+    }else{
+      status.textContent=clamp(output.value,0,300)>=clamp(target.value,1,300)?'Fertig':'Stop';
+      status.className=clamp(output.value,0,300)>=clamp(target.value,1,300)?'status done':'status';
+    }
+    updateStatic();
+  }
+
+  function resetAll(){
+    if(timer){clearInterval(timer);timer=null;}
+    running=false;originalStart=null;segmentStart=null;accumulatedMs=0;processedMinutes=0;
+    input.value=0;output.value=0;target.value=300;
+    document.querySelector('input[name="ratio"][value="5"]').checked=true;
+
+    [input,output,target,resource,...resourceInputs].forEach(el=>el.disabled=false);
+    document.querySelectorAll('input[name="ratio"]').forEach(el=>el.disabled=false);
+    startBtn.disabled=false;pauseBtn.disabled=true;
+    status.textContent='Bereit';status.className='status';
+    message.textContent='';
+    updateStatic();
+  }
+
+  resourceInputs.forEach(el=>el.addEventListener('input',rebuildResources));
+  [input,output,target].forEach(el=>el.addEventListener('input',updateStatic));
+  resource.addEventListener('change',updateStatic);
+  document.querySelectorAll('input[name="ratio"]').forEach(el=>el.addEventListener('change',updateStatic));
+
+  startBtn.addEventListener('click',startRunning);
+  pauseBtn.addEventListener('click',()=>stopRunning(true));
+  resetBtn.addEventListener('click',resetAll);
+
+  rebuildResources();
+  updateStatic();
+})();
+</script>
+</body>
+</html>
