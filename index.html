@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Ressourcen-Werkbank kompakt</title>
   <style>
@@ -96,8 +97,8 @@
         <label class="radio"><input type="radio" name="ratio" value="5" checked> 5 : 1</label>
         <label class="radio"><input type="radio" name="ratio" value="10"> 10 : 1</label>
       </div>
-      <div class="note">Pro Minute: 5 bzw. 10 Input â†’ 1 Output.</div>
-      <div id="formula" class="formula">0 Input â†’ 0 mÃ¶gliche Output</div>
+      <div class="note">Pro Minute: 5 bzw. 10 Input &rarr; 1 Output.</div>
+      <div id="formula" class="formula">0 Input &rarr; 0 m&ouml;gliche Output</div>
     </section>
 
     <section class="card">
@@ -122,7 +123,7 @@
       <div class="toprow">
         <div>
           <h3>Echtzeit</h3>
-          <div class="muted">LÃ¤uft auch nach SchlieÃŸen/Neustart anhand der gespeicherten Zeit weiter</div>
+          <div class="muted">L&auml;uft auch nach Schlie&szlig;en/Neustart anhand der gespeicherten Zeit weiter</div>
         </div>
         <div class="actions">
           <button id="startBtn">Start</button>
@@ -132,10 +133,10 @@
       </div>
 
       <div class="stats">
-        <div class="stat"><div class="muted">Startzeit</div><div id="startTime" class="v">â€“</div></div>
+        <div class="stat"><div class="muted">Startzeit</div><div id="startTime" class="v">&ndash;</div></div>
         <div class="stat"><div class="muted">Laufzeit</div><div id="elapsed" class="v">00:00:00</div></div>
-        <div class="stat"><div class="muted">Restzeit Input</div><div id="remaining" class="v">â€“</div></div>
-        <div class="stat"><div class="muted">Output fertig um</div><div id="finishTime" class="v">â€“</div></div>
+        <div class="stat"><div class="muted">Restzeit Input</div><div id="remaining" class="v">&ndash;</div></div>
+        <div class="stat"><div class="muted">Output fertig um</div><div id="finishTime" class="v">&ndash;</div></div>
       </div>
       <div id="message" class="msg"></div>
     </section>
@@ -144,7 +145,7 @@
       <div class="grid">
         <div>
           <h3>Zielmenge</h3>
-          <div class="muted">FÃ¼r die visuelle Fertig-Anzeige</div>
+          <div class="muted">F&uuml;r die visuelle Fertig-Anzeige</div>
         </div>
         <div>
           <input id="targetAmount" type="number" min="1" max="300" value="300">
@@ -154,7 +155,7 @@
         <div class="toprow" style="margin-bottom:0">
           <div>
             <div id="goalTitle" style="font-size:16px;font-weight:800">Noch nicht fertig</div>
-            <div id="goalText" class="muted">Es fehlen noch 300 StÃ¼ck.</div>
+            <div id="goalText" class="muted">Es fehlen noch 300 St&uuml;ck.</div>
           </div>
           <div id="goalValue" class="counter">0 / 300</div>
         </div>
@@ -196,7 +197,7 @@
   }
 
   function formatClock(date){
-    if(!date) return 'â€“';
+    if(!date) return '\u2013';
     return new Intl.DateTimeFormat('de-DE',{
       day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'
     }).format(date);
@@ -285,7 +286,7 @@
       stopRunning(false);
       message.textContent=o>=300
         ? 'Output 300 erreicht.'
-        : `Input verarbeitet. Restbestand: ${i}. FÃ¼r einen weiteren Output werden ${r} Input benÃ¶tigt.`;
+        : `Input verarbeitet. Restbestand: ${i}. F\u00FCr einen weiteren Output werden ${r} Input ben\u00F6tigt.`;
     }
   }
 
@@ -304,14 +305,14 @@
     const possible=Math.min(300-o,Math.floor(i/r));
     const rawPossible=Math.floor(i/r);
     const leftover=i-(rawPossible*r);
-    document.getElementById('formula').textContent=`${i} ${resource.value||'Ressource'} â†’ ${possible} Output mÃ¶glich Â· ${rawPossible} Min. Verarbeitung Â· Rest ${leftover} Input`;
+    document.getElementById('formula').textContent=`${i} ${resource.value||'Ressource'} \u2192 ${possible} Output m\u00F6glich \u00B7 ${rawPossible} Min. Verarbeitung \u00B7 Rest ${leftover} Input`;
 
     const done=o>=t;
     document.getElementById('goalValue').textContent=`${o} / ${t}`;
-    document.getElementById('goalTitle').textContent=done?'âœ“ Fertig':'Noch nicht fertig';
+    document.getElementById('goalTitle').textContent=done?'\u2713 Fertig':'Noch nicht fertig';
     document.getElementById('goalText').textContent=done
       ? `Zielmenge ${t} erreicht.`
-      : `Noch ${Math.max(0,t-o)} StÃ¼ck.`;
+      : `Noch ${Math.max(0,t-o)} St\u00FCck.`;
     document.getElementById('goalBox').classList.toggle('done',done);
 
     if(!running&&!originalStart){
@@ -326,7 +327,7 @@
   function updateTimePanel(){
     const elapsedMs=effectiveElapsedMs();
     document.getElementById('elapsed').textContent=formatDuration(elapsedMs/1000);
-    document.getElementById('startTime').textContent=originalStart?formatClock(originalStart):'â€“';
+    document.getElementById('startTime').textContent=originalStart?formatClock(originalStart):'\u2013';
 
     const i=clamp(input.value,0,3000);
     const o=clamp(output.value,0,300);
@@ -371,7 +372,7 @@
     const r=ratio();
 
     if(o>=300){message.textContent='Output bereits voll.';return;}
-    if(i<r){message.textContent=`Mindestens ${r} Input nÃ¶tig. Aktuell sind ${i} vorhanden.`;return;}
+    if(i<r){message.textContent=`Mindestens ${r} Input n\u00F6tig. Aktuell sind ${i} vorhanden.`;return;}
 
     if(!originalStart){
       originalStart=new Date();
@@ -381,11 +382,11 @@
 
     segmentStart=Date.now();
     running=true;
-    status.textContent='LÃ¤uft';
+    status.textContent='L\u00E4uft';
     status.className='status running';
     setControlsForRunning();
 
-    message.textContent=`Gestartet: ${r}:1 Â· Zustand wird automatisch gespeichert.`;
+    message.textContent=`Gestartet: ${r}:1 \u00B7 Zustand wird automatisch gespeichert.`;
     timer=setInterval(tick,1000);
     tick();
   }
@@ -437,12 +438,12 @@
   if(!restored) rebuildResources(false);
 
   if(running){
-    status.textContent='LÃ¤uft';
+    status.textContent='L\u00E4uft';
     status.className='status running';
     setControlsForRunning();
     syncProcessing();
     if(running){
-      message.textContent='Weitergelaufen seit dem letzten Ã–ffnen.';
+      message.textContent='Weitergelaufen seit dem letzten \u00D6ffnen.';
       timer=setInterval(tick,1000);
     }
   }else{
