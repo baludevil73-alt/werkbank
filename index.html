@@ -96,8 +96,8 @@
         <label class="radio"><input type="radio" name="ratio" value="5" checked> 5 : 1</label>
         <label class="radio"><input type="radio" name="ratio" value="10"> 10 : 1</label>
       </div>
-      <div class="note">Pro Minute: 5 bzw. 10 Input → 1 Output.</div>
-      <div id="formula" class="formula">0 Input → 0 mögliche Output</div>
+      <div class="note">Pro Minute: 5 bzw. 10 Input â†’ 1 Output.</div>
+      <div id="formula" class="formula">0 Input â†’ 0 mÃ¶gliche Output</div>
     </section>
 
     <section class="card">
@@ -122,7 +122,7 @@
       <div class="toprow">
         <div>
           <h3>Echtzeit</h3>
-          <div class="muted">Startet mit echter verstrichener Zeit</div>
+          <div class="muted">LÃ¤uft auch nach SchlieÃŸen/Neustart anhand der gespeicherten Zeit weiter</div>
         </div>
         <div class="actions">
           <button id="startBtn">Start</button>
@@ -132,10 +132,10 @@
       </div>
 
       <div class="stats">
-        <div class="stat"><div class="muted">Startzeit</div><div id="startTime" class="v">–</div></div>
+        <div class="stat"><div class="muted">Startzeit</div><div id="startTime" class="v">â€“</div></div>
         <div class="stat"><div class="muted">Laufzeit</div><div id="elapsed" class="v">00:00:00</div></div>
-        <div class="stat"><div class="muted">Restzeit bis 300</div><div id="remaining" class="v">–</div></div>
-        <div class="stat"><div class="muted">Fertig um</div><div id="finishTime" class="v">–</div></div>
+        <div class="stat"><div class="muted">Restzeit Input</div><div id="remaining" class="v">â€“</div></div>
+        <div class="stat"><div class="muted">Input fertig um</div><div id="finishTime" class="v">â€“</div></div>
       </div>
       <div id="message" class="msg"></div>
     </section>
@@ -144,7 +144,7 @@
       <div class="grid">
         <div>
           <h3>Zielmenge</h3>
-          <div class="muted">Für die visuelle Fertig-Anzeige</div>
+          <div class="muted">FÃ¼r die visuelle Fertig-Anzeige</div>
         </div>
         <div>
           <input id="targetAmount" type="number" min="1" max="300" value="300">
@@ -154,7 +154,7 @@
         <div class="toprow" style="margin-bottom:0">
           <div>
             <div id="goalTitle" style="font-size:16px;font-weight:800">Noch nicht fertig</div>
-            <div id="goalText" class="muted">Es fehlen noch 300 Stück.</div>
+            <div id="goalText" class="muted">Es fehlen noch 300 StÃ¼ck.</div>
           </div>
           <div id="goalValue" class="counter">0 / 300</div>
         </div>
@@ -165,6 +165,7 @@
 
 <script>
 (() => {
+  const STORAGE_KEY='ressourcenWerkbankStateV2';
   const input = document.getElementById('inputAmount');
   const output = document.getElementById('outputAmount');
   const target = document.getElementById('targetAmount');
@@ -195,13 +196,56 @@
   }
 
   function formatClock(date){
-    if(!date) return '–';
+    if(!date) return 'â€“';
     return new Intl.DateTimeFormat('de-DE',{
       day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'
     }).format(date);
   }
 
-  function rebuildResources(){
+  function saveState(){
+    const state={
+      input:clamp(input.value,0,3000),
+      output:clamp(output.value,0,300),
+      target:clamp(target.value,1,300),
+      ratio:ratio(),
+      resources:resourceInputs.map(el=>el.value),
+      selectedResource:resource.value,
+      running,
+      originalStart:originalStart?originalStart.getTime():null,
+      segmentStart,
+      accumulatedMs,
+      processedMinutes,
+      savedAt:Date.now()
+    };
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+  }
+
+  function restoreState(){
+    try{
+      const raw=localStorage.getItem(STORAGE_KEY);
+      if(!raw) return false;
+      const s=JSON.parse(raw);
+      input.value=clamp(s.input,0,3000);
+      output.value=clamp(s.output,0,300);
+      target.value=clamp(s.target,1,300);
+      if(Array.isArray(s.resources)) resourceInputs.forEach((el,i)=>{ if(typeof s.resources[i]==='string') el.value=s.resources[i]; });
+      const radio=document.querySelector(`input[name="ratio"][value="${Number(s.ratio)===10?10:5}"]`);
+      if(radio) radio.checked=true;
+      originalStart=s.originalStart?new Date(s.originalStart):null;
+      segmentStart=Number.isFinite(Number(s.segmentStart))?Number(s.segmentStart):null;
+      accumulatedMs=Math.max(0,Number(s.accumulatedMs)||0);
+      processedMinutes=Math.max(0,Math.floor(Number(s.processedMinutes)||0));
+      running=Boolean(s.running && segmentStart);
+      rebuildResources(false);
+      if(s.selectedResource && [...resource.options].some(o=>o.value===s.selectedResource)) resource.value=s.selectedResource;
+      return true;
+    }catch(e){
+      console.warn('Gespeicherter Zustand konnte nicht geladen werden.',e);
+      return false;
+    }
+  }
+
+  function rebuildResources(shouldSave=true){
     const previous=resource.value;
     resource.innerHTML='';
     resourceInputs.forEach((el,i)=>{
@@ -211,7 +255,7 @@
     });
     const values=[...resource.options].map(o=>o.value);
     resource.value=values.includes(previous)?previous:values[0];
-    updateStatic();
+    updateStatic(shouldSave);
   }
 
   function effectiveElapsedMs(){
@@ -221,7 +265,7 @@
   function syncProcessing(){
     if(!running) return;
     const elapsedFullMinutes=Math.floor(effectiveElapsedMs()/60000);
-    let newMinutes=elapsedFullMinutes-processedMinutes;
+    const newMinutes=elapsedFullMinutes-processedMinutes;
     if(newMinutes<=0) return;
 
     let i=clamp(input.value,0,3000);
@@ -241,11 +285,11 @@
       stopRunning(false);
       message.textContent=o>=300
         ? 'Output 300 erreicht.'
-        : `Zu wenig Input für ${r}:1.`;
+        : `Input verarbeitet. Restbestand: ${i}. FÃ¼r einen weiteren Output werden ${r} Input benÃ¶tigt.`;
     }
   }
 
-  function updateStatic(){
+  function updateStatic(shouldSave=true){
     const i=clamp(input.value,0,3000);
     const o=clamp(output.value,0,300);
     const t=clamp(target.value,1,300);
@@ -258,14 +302,16 @@
 
     const r=ratio();
     const possible=Math.min(300-o,Math.floor(i/r));
-    document.getElementById('formula').textContent=`${i} ${resource.value||'Ressource'} → ${possible} Output möglich`;
+    const rawPossible=Math.floor(i/r);
+    const leftover=i-(rawPossible*r);
+    document.getElementById('formula').textContent=`${i} ${resource.value||'Ressource'} â†’ ${possible} Output mÃ¶glich Â· ${rawPossible} Min. Verarbeitung Â· Rest ${leftover} Input`;
 
     const done=o>=t;
     document.getElementById('goalValue').textContent=`${o} / ${t}`;
-    document.getElementById('goalTitle').textContent=done?'✓ Fertig':'Noch nicht fertig';
+    document.getElementById('goalTitle').textContent=done?'âœ“ Fertig':'Noch nicht fertig';
     document.getElementById('goalText').textContent=done
       ? `Zielmenge ${t} erreicht.`
-      : `Noch ${Math.max(0,t-o)} Stück.`;
+      : `Noch ${Math.max(0,t-o)} StÃ¼ck.`;
     document.getElementById('goalBox').classList.toggle('done',done);
 
     if(!running&&!originalStart){
@@ -274,36 +320,47 @@
     }
 
     updateTimePanel();
+    if(shouldSave) saveState();
   }
 
   function updateTimePanel(){
     const elapsedMs=effectiveElapsedMs();
     document.getElementById('elapsed').textContent=formatDuration(elapsedMs/1000);
-    document.getElementById('startTime').textContent=originalStart?formatClock(originalStart):'–';
+    document.getElementById('startTime').textContent=originalStart?formatClock(originalStart):'â€“';
 
     const i=clamp(input.value,0,3000);
     const o=clamp(output.value,0,300);
     const r=ratio();
-    const needed=300-o;
-    const possible=Math.floor(i/r);
+    const processableUnits=Math.min(Math.floor(i/r),300-o);
 
     if(o>=300){
       document.getElementById('remaining').textContent='00:00:00';
-      document.getElementById('finishTime').textContent='Fertig';
-    }else if(possible<needed){
-      document.getElementById('remaining').textContent=`nicht möglich`;
-      document.getElementById('finishTime').textContent='Zu wenig Input';
-    }else{
-      const secIntoMinute=Math.floor((elapsedMs/1000)%60);
-      const remainingSeconds=needed*60-(running?secIntoMinute:0);
-      document.getElementById('remaining').textContent=formatDuration(remainingSeconds);
-      document.getElementById('finishTime').textContent=formatClock(new Date(Date.now()+remainingSeconds*1000));
+      document.getElementById('finishTime').textContent='Output voll';
+      return;
     }
+
+    if(processableUnits<=0){
+      document.getElementById('remaining').textContent='00:00:00';
+      document.getElementById('finishTime').textContent=i>0?`Rest ${i} Input`:'Kein Input';
+      return;
+    }
+
+    const secIntoMinute=running ? Math.floor((elapsedMs/1000)%60) : 0;
+    const remainingSeconds=Math.max(0,processableUnits*60-secIntoMinute);
+    document.getElementById('remaining').textContent=formatDuration(remainingSeconds);
+    document.getElementById('finishTime').textContent=formatClock(new Date(Date.now()+remainingSeconds*1000));
   }
 
   function tick(){
     syncProcessing();
     updateStatic();
+  }
+
+  function setControlsForRunning(){
+    startBtn.disabled=running;
+    pauseBtn.disabled=!running;
+    [input,output,target,resource,...resourceInputs].forEach(el=>el.disabled=running);
+    document.querySelectorAll('input[name="ratio"]').forEach(el=>el.disabled=running);
   }
 
   function startRunning(){
@@ -314,7 +371,7 @@
     const r=ratio();
 
     if(o>=300){message.textContent='Output bereits voll.';return;}
-    if(i<r){message.textContent=`Mindestens ${r} Input nötig.`;return;}
+    if(i<r){message.textContent=`Mindestens ${r} Input nÃ¶tig. Aktuell sind ${i} vorhanden.`;return;}
 
     if(!originalStart){
       originalStart=new Date();
@@ -324,15 +381,11 @@
 
     segmentStart=Date.now();
     running=true;
-    status.textContent='Läuft';
+    status.textContent='LÃ¤uft';
     status.className='status running';
-    startBtn.disabled=true;
-    pauseBtn.disabled=false;
+    setControlsForRunning();
 
-    [input,output,target,resource,...resourceInputs].forEach(el=>el.disabled=true);
-    document.querySelectorAll('input[name="ratio"]').forEach(el=>el.disabled=true);
-
-    message.textContent=`Gestartet: ${r}:1`;
+    message.textContent=`Gestartet: ${r}:1 Â· Zustand wird automatisch gespeichert.`;
     timer=setInterval(tick,1000);
     tick();
   }
@@ -343,10 +396,7 @@
     running=false;
     if(timer){clearInterval(timer);timer=null;}
 
-    startBtn.disabled=false;
-    pauseBtn.disabled=true;
-    [input,output,target,resource,...resourceInputs].forEach(el=>el.disabled=false);
-    document.querySelectorAll('input[name="ratio"]').forEach(el=>el.disabled=false);
+    setControlsForRunning();
 
     if(paused){
       status.textContent='Pause';
@@ -365,24 +415,39 @@
     input.value=0;output.value=0;target.value=300;
     document.querySelector('input[name="ratio"][value="5"]').checked=true;
 
-    [input,output,target,resource,...resourceInputs].forEach(el=>el.disabled=false);
-    document.querySelectorAll('input[name="ratio"]').forEach(el=>el.disabled=false);
-    startBtn.disabled=false;pauseBtn.disabled=true;
+    setControlsForRunning();
     status.textContent='Bereit';status.className='status';
     message.textContent='';
+    localStorage.removeItem(STORAGE_KEY);
     updateStatic();
   }
 
-  resourceInputs.forEach(el=>el.addEventListener('input',rebuildResources));
-  [input,output,target].forEach(el=>el.addEventListener('input',updateStatic));
-  resource.addEventListener('change',updateStatic);
-  document.querySelectorAll('input[name="ratio"]').forEach(el=>el.addEventListener('change',updateStatic));
+  resourceInputs.forEach(el=>el.addEventListener('input',()=>rebuildResources(true)));
+  [input,output,target].forEach(el=>el.addEventListener('input',()=>updateStatic(true)));
+  resource.addEventListener('change',()=>updateStatic(true));
+  document.querySelectorAll('input[name="ratio"]').forEach(el=>el.addEventListener('change',()=>updateStatic(true)));
 
   startBtn.addEventListener('click',startRunning);
   pauseBtn.addEventListener('click',()=>stopRunning(true));
   resetBtn.addEventListener('click',resetAll);
+  window.addEventListener('beforeunload',saveState);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') saveState(); });
 
-  rebuildResources();
+  const restored=restoreState();
+  if(!restored) rebuildResources(false);
+
+  if(running){
+    status.textContent='LÃ¤uft';
+    status.className='status running';
+    setControlsForRunning();
+    syncProcessing();
+    if(running){
+      message.textContent='Weitergelaufen seit dem letzten Ã–ffnen.';
+      timer=setInterval(tick,1000);
+    }
+  }else{
+    setControlsForRunning();
+  }
   updateStatic();
 })();
 </script>
