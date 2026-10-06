@@ -61,10 +61,46 @@
       .wrap{padding:10px}
       .resource-grid,.radios,.stats{grid-template-columns:1fr}
     }
+
+    .auth-overlay{position:fixed;inset:0;z-index:1000;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:18px}
+    .auth-box{width:min(430px,100%);background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px}
+    .field{margin-top:12px}.auth-error{min-height:18px;margin-top:10px;color:#fca5a5;font-size:12px}
+    .app-topbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+    .admin-panel[hidden]{display:none}.admin-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:7px;align-items:end}
+    .user-list{margin-top:10px;display:grid;gap:7px}.user-row{display:grid;grid-template-columns:1fr auto auto auto;gap:7px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px}
+    .smallbtn{min-height:31px;padding:5px 9px;font-size:12px}.user-badge{font-size:12px;color:var(--muted)}
+    @media(max-width:720px){.admin-grid,.user-row{grid-template-columns:1fr}.app-topbar{justify-content:stretch}}
   </style>
 </head>
 <body>
+<div id="loginOverlay" class="auth-overlay">
+ <section class="auth-box">
+  <h2 style="margin:0 0 5px">Anmeldung</h2><div class="muted">Geschützter Zugriff über Supabase</div>
+  <div class="field"><label for="loginEmail">E-Mail</label><input id="loginEmail" type="email" autocomplete="username"></div>
+  <div class="field"><label for="loginPassword">Passwort</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+  <div class="actions" style="margin-top:14px"><button id="loginBtn">Anmelden</button></div>
+  <div id="loginError" class="auth-error"></div>
+ </section>
+</div>
+
 <main class="wrap">
+  <div class="app-topbar">
+    <span id="loggedInUser" class="user-badge"></span>
+    <button id="adminToggleBtn" class="secondary" hidden>Benutzerverwaltung</button>
+    <button id="logoutBtn" class="secondary">Abmelden</button>
+  </div>
+  <section id="adminPanel" class="card admin-panel" hidden>
+   <h3>Benutzerverwaltung</h3><div class="muted">Supabase Auth · nur Administratoren</div>
+   <div class="admin-grid" style="margin-top:10px">
+    <div><label>E-Mail</label><input id="newEmail" type="email"></div>
+    <div><label>Anzeigename</label><input id="newDisplayName"></div>
+    <div><label>Passwort</label><input id="newPassword" type="password"></div>
+    <div><label>Rolle</label><select id="newRole"><option value="user">Benutzer</option><option value="admin">Administrator</option></select></div>
+    <button id="addUserBtn">Hinzufügen</button>
+   </div>
+   <div id="adminMessage" class="msg"></div><div id="userList" class="user-list"></div>
+  </section>
+
   <h1>Ressourcen-Werkbank</h1>
   <div class="sub">Kompakte Echtzeit-Verarbeitung mit Start, Pause, Startzeit und Restzeit</div>
 
@@ -163,6 +199,66 @@
     </section>
   </div>
 </main>
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(async()=>{
+ const SUPABASE_URL='https://wqurktlphlrdpybracmy.supabase.co';
+ const SUPABASE_KEY='sb_publishable_i0iLsU282tI36fAOqr1LGA_mHXySbfh';
+ const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+ const overlay=document.getElementById('loginOverlay'),err=document.getElementById('loginError'),badge=document.getElementById('loggedInUser');
+ const adminBtn=document.getElementById('adminToggleBtn'),panel=document.getElementById('adminPanel'),msg=document.getElementById('adminMessage'),list=document.getElementById('userList');
+
+ async function refresh(){
+   const {data:{user}}=await sb.auth.getUser();
+   if(!user){overlay.style.display='flex';badge.textContent='';adminBtn.hidden=true;panel.hidden=true;return}
+   overlay.style.display='none';
+   const {data:p}=await sb.from('profiles').select('display_name,role').eq('id',user.id).maybeSingle();
+   badge.textContent=`Angemeldet: ${p?.display_name||user.email} (${p?.role==='admin'?'Administrator':'Benutzer'})`;
+   adminBtn.hidden=p?.role!=='admin'; if(p?.role!=='admin')panel.hidden=true;
+ }
+ async function invoke(body){
+   const {data,error}=await sb.functions.invoke('admin-users',{body});
+   if(error) throw error; if(data?.error)throw new Error(data.error); return data;
+ }
+ async function render(){
+   msg.textContent='';list.innerHTML='';
+   try{
+    const data=await invoke({action:'list'});
+    data.users.forEach(u=>{
+      const row=document.createElement('div');row.className='user-row';
+      const info=document.createElement('div');info.innerHTML=`<strong></strong><div class="muted"></div>`;
+      info.querySelector('strong').textContent=u.display_name||u.email||u.id;
+      info.querySelector('.muted').textContent=`${u.email||''} · ${u.role==='admin'?'Administrator':'Benutzer'}`;
+      const role=document.createElement('button');role.className='secondary smallbtn';role.textContent=u.role==='admin'?'Zu Benutzer':'Zu Admin';
+      role.onclick=async()=>{try{await invoke({action:'role',id:u.id,role:u.role==='admin'?'user':'admin'});await render();await refresh()}catch(e){msg.textContent=e.message}};
+      const pw=document.createElement('button');pw.className='secondary smallbtn';pw.textContent='Passwort';
+      pw.onclick=async()=>{const p=prompt(`Neues Passwort für ${u.email}:`);if(p===null)return;try{await invoke({action:'password',id:u.id,password:p});msg.textContent='Passwort geändert.'}catch(e){msg.textContent=e.message}};
+      const del=document.createElement('button');del.className='danger smallbtn';del.textContent='Löschen';
+      del.onclick=async()=>{if(!confirm(`${u.email} wirklich löschen?`))return;try{await invoke({action:'delete',id:u.id});await render()}catch(e){msg.textContent=e.message}};
+      row.append(info,role,pw,del);list.append(row);
+    });
+   }catch(e){msg.textContent=e.message}
+ }
+ document.getElementById('loginBtn').onclick=async()=>{
+   err.textContent='';const email=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPassword').value;
+   const {error}=await sb.auth.signInWithPassword({email,password});
+   if(error){err.textContent='Anmeldung fehlgeschlagen.';return}document.getElementById('loginPassword').value='';await refresh();
+ };
+ document.getElementById('loginPassword').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginBtn').click()});
+ document.getElementById('logoutBtn').onclick=async()=>{await sb.auth.signOut();await refresh()};
+ adminBtn.onclick=async()=>{panel.hidden=!panel.hidden;if(!panel.hidden)await render()};
+ document.getElementById('addUserBtn').onclick=async()=>{
+  msg.textContent='';
+  try{
+   await invoke({action:'create',email:document.getElementById('newEmail').value,display_name:document.getElementById('newDisplayName').value,password:document.getElementById('newPassword').value,role:document.getElementById('newRole').value});
+   document.getElementById('newEmail').value='';document.getElementById('newDisplayName').value='';document.getElementById('newPassword').value='';msg.textContent='Benutzer angelegt.';await render();
+  }catch(e){msg.textContent=e.message}
+ };
+ sb.auth.onAuthStateChange(()=>setTimeout(refresh,0));await refresh();
+})();
+</script>
 
 <script>
 (() => {
